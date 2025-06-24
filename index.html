@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Value Inn Motel Management</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; font-size: 20px; }
+    .hidden { display: none; }
+    .room, .customer-info { margin-top: 10px; border: 1px solid #ccc; padding: 10px; font-size: 18px; }
+    label { display: block; margin-top: 5px; font-size: 18px; }
+    button { margin-top: 10px; font-size: 18px; }
+    select, input { font-size: 18px; }
+  </style>
+</head>
+<body>
+  <h1>Value Inn Motel Management</h1>
+
+  <div id="login">
+    <h3>Login</h3>
+    <label>Username: <input type="text" id="username"></label>
+    <label>Password: <input type="password" id="password"></label>
+    <button onclick="login()">Login</button>
+    <p id="loginMessage"></p>
+  </div>
+
+  <div id="app" class="hidden">
+    <select id="menu" onchange="showSection()">
+      <option value="rooms">View All Rooms</option>
+      <option value="update">Update Room Cleanliness</option>
+      <option value="availability">Update Room Availability</option>
+      <option value="availableRooms">Available Rooms</option>
+      <option value="reserve">Reserve Room</option>
+      <option value="reservations">View Reservations</option>
+      <option value="find">Find Customer</option>
+      <option value="status">Customer Status</option>
+      <option value="checkout">Check Out Customer</option>
+    </select>
+
+    <div id="rooms" class="hidden"></div>
+    <div id="update" class="hidden">
+      <label>Room ID: <input type="number" id="updateRoomId" min="1" max="14"></label>
+      <label><input type="checkbox" id="isClean"> Room is clean</label>
+      <button onclick="updateClean()">Update</button>
+      <p id="updateStatus"></p>
+    </div>
+    <div id="availability" class="hidden">
+      <label>Room ID: <input type="number" id="availRoomId" min="1" max="14"></label>
+      <label><input type="checkbox" id="isAvailable"> Room is available</label>
+      <button onclick="updateAvailability()">Update</button>
+      <p id="availabilityStatus"></p>
+    </div>
+    <div id="availableRooms" class="hidden">
+      <h3>Available Rooms</h3>
+      <div id="availableRoomList"></div>
+    </div>
+    <div id="reserve" class="hidden">
+      <h3>Reserve a Room</h3>
+      <label>Name: <input type="text" id="custName"></label>
+      <label>Address: <input type="text" id="custAddress"></label>
+      <label>Stay Duration:
+        <select id="custDuration">
+          <option value="1 hour">1 hour</option>
+          <option value="2 hours">2 hours</option>
+          <option value="3 hours">3 hours</option>
+          <option value="4 hours">4 hours</option>
+          <option value="5 hours">5 hours</option>
+          <option value="1 night">1 night</option>
+          <option value="2 nights">2 nights</option>
+        </select>
+      </label>
+      <label>Days: <input type="number" id="custDays" min="1"></label>
+      <label>Payment Method:
+        <select id="custPayment">
+          <option value="Cash">Cash</option>
+          <option value="Credit Card">Credit Card</option>
+        </select>
+      </label>
+      <label>Room Price (before tax): <input type="number" id="custPrice"></label>
+      <label>Room ID: <input type="number" id="custRoomId" min="1" max="14"></label>
+      <label>Require Security Deposit:
+        <button type="button" onclick="toggleDeposit(true)">Deposit</button>
+        <button type="button" onclick="toggleDeposit(false)">No Deposit</button>
+      </label>
+      <label id="depositInput" class="hidden">Security Deposit: <input type="number" id="custDeposit"></label>
+      <button onclick="reserveRoom()">Capture ID & Reserve</button>
+      <p id="reserveStatus"></p>
+    </div>
+    <div id="reservations" class="hidden">
+      <h3>Current Reservations</h3>
+      <div id="reservationList"></div>
+    </div>
+    <div id="find" class="hidden">
+      <label>Customer Name: <input type="text" id="searchName"></label>
+      <button onclick="findCustomer()">Search</button>
+      <div id="searchResult"></div>
+    </div>
+    <div id="status" class="hidden">
+      <h3>Customer Check-In Status</h3>
+      <div id="statusList"></div>
+    </div>
+    <div id="checkout" class="hidden">
+      <h3>Check Out a Customer</h3>
+      <label>Room ID: <input type="number" id="checkoutRoomId" min="1" max="14"></label>
+      <button onclick="checkoutCustomer()">Check Out</button>
+      <p id="checkoutStatus"></p>
+    </div>
+  </div>
+
+  <script>
+    let rooms = Array.from({length: 14}, (_, i) => ({ id: i + 1, type: ["Double Bed", "Jacuzzi", "Queen", "King"][i % 4], clean: true, reserved: false, customer: null }));
+
+    function login() {
+      const user = document.getElementById("username").value;
+      const pass = document.getElementById("password").value;
+      if (user === "admin" && pass === "admin") {
+        document.getElementById("login").classList.add("hidden");
+        document.getElementById("app").classList.remove("hidden");
+        listRooms();
+      } else {
+        document.getElementById("loginMessage").textContent = "Invalid login.";
+      }
+    }
+
+    function showSection() {
+      const sections = ["rooms", "update", "availability", "availableRooms", "reserve", "reservations", "find", "status", "checkout"];
+      sections.forEach(s => document.getElementById(s).classList.add("hidden"));
+      const selected = document.getElementById("menu").value;
+      document.getElementById(selected).classList.remove("hidden");
+      if (selected === "rooms") listRooms();
+      if (selected === "reservations") viewReservations();
+      if (selected === "availableRooms") listAvailableRooms();
+      if (selected === "status") listStatus();
+    }
+
+    function toggleDeposit(require) {
+      document.getElementById("depositInput").classList.toggle("hidden", !require);
+      if (!require) document.getElementById("custDeposit").value = 0;
+    }
+
+    function listRooms() {
+      const div = document.getElementById("rooms");
+      div.innerHTML = rooms.map(r => `<div class='room'>Room ${r.id} - ${r.type} | Clean: ${r.clean} | Reserved: ${r.reserved}</div>`).join('');
+    }
+
+    function listAvailableRooms() {
+      const div = document.getElementById("availableRoomList");
+      div.innerHTML = rooms.filter(r => !r.reserved).map(r => `<div class='room'>Room ${r.id} - ${r.type} | Clean: ${r.clean}</div>`).join('');
+    }
+
+    function updateClean() {
+      const id = parseInt(document.getElementById("updateRoomId").value);
+      const clean = document.getElementById("isClean").checked;
+      const room = rooms.find(r => r.id === id);
+      if (room) {
+        room.clean = clean;
+        document.getElementById("updateStatus").textContent = `Room ${id} updated.`;
+        listRooms();
+      }
+    }
+
+    function updateAvailability() {
+      const id = parseInt(document.getElementById("availRoomId").value);
+      const available = document.getElementById("isAvailable").checked;
+      const room = rooms.find(r => r.id === id);
+      if (room) {
+        room.reserved = !available;
+        if (!available) room.customer = {name: "Blocked", address: "", days: 0, payment: "N/A", tax: "0%", price: 0, deposit: 0};
+        else room.customer = null;
+        document.getElementById("availabilityStatus").textContent = `Room ${id} availability updated.`;
+        listRooms();
+      }
+    }
+
+    function reserveRoom() {
+      const id = parseInt(document.getElementById("custRoomId").value);
+      const room = rooms.find(r => r.id === id && !r.reserved);
+      if (!room) {
+        document.getElementById("reserveStatus").textContent = "Room not available.";
+        return;
+      }
+      const name = document.getElementById("custName").value;
+      const address = document.getElementById("custAddress").value;
+      const duration = document.getElementById("custDuration").value;
+      const days = parseInt(document.getElementById("custDays").value);
+      const payment = document.getElementById("custPayment").value;
+      const price = parseFloat(document.getElementById("custPrice").value);
+      const deposit = parseFloat(document.getElementById("custDeposit").value || "0");
+      const tax = payment === "Credit Card" ? 0.14 * price : 0;
+      const total = price + tax;
+
+      alert("Camera app opened to scan ID");
+      const idScan = `ID-${Math.floor(Math.random() * 100000)}`;
+
+      alert("Camera app opened to capture signature");
+      const signature = `Signature-${Math.floor(Math.random() * 100000)}`;
+
+      alert(`Customer has paid. Total (with tax): $${total.toFixed(2)} | Security Deposit: $${deposit}`);
+
+      room.reserved = true;
+      room.customer = { name, address, duration, days, payment, tax: `${tax.toFixed(2)}`, price: price.toFixed(2), deposit: deposit.toFixed(2), notes: "", idScan, signature };
+      document.getElementById("reserveStatus").textContent = `Room ${id} reserved.`;
+      listRooms();
+    }
+
+    function viewReservations() {
+      const div = document.getElementById("reservationList");
+      div.innerHTML = rooms.filter(r => r.reserved)
+        .map(r => `<div class='room'>Room ${r.id} - ${r.type}<br>Customer: ${r.customer.name}, ${r.customer.address}, Duration: ${r.customer.duration}, ${r.customer.days} days, Payment: ${r.customer.payment}, Tax: ${r.customer.tax}, Price: ${r.customer.price}, Deposit: ${r.customer.deposit}</div>`)
+        .join('');
+    }
+
+    function findCustomer() {
+      const name = document.getElementById("searchName").value.toLowerCase();
+      const room = rooms.find(r => r.customer && r.customer.name.toLowerCase() === name);
+      const result = document.getElementById("searchResult");
+      if (room) {
+        const note = prompt("Enter any post-checkout notes (e.g. stains):", room.customer.notes || "");
+        if (note !== null) room.customer.notes = note;
+        result.innerHTML = `<div class='customer-info'>${JSON.stringify(room.customer)}</div><p>Notes: ${room.customer.notes}</p>`;
+      } else {
+        result.innerHTML = "No matching customer.";
+      }
+    }
+
+    function listStatus() {
+      const div = document.getElementById("statusList");
+      div.innerHTML = rooms.map(r => `<div class='room'>Room ${r.id}: ${r.customer ? r.customer.name : "No Guest"} - ${r.reserved ? "Checked In" : "Checked Out"}</div>`).join('');
+    }
+
+    function checkoutCustomer() {
+      const id = parseInt(document.getElementById("checkoutRoomId").value);
+      const room = rooms.find(r => r.id === id);
+      if (room && room.reserved) {
+        alert(`Checked out customer: ${room.customer.name}`);
+        room.reserved = false;
+        room.customer = null;
+        document.getElementById("checkoutStatus").textContent = `Room ${id} checked out.`;
+        listRooms();
+      } else {
+        document.getElementById("checkoutStatus").textContent = `Room ${id} is not currently reserved.`;
+      }
+    }
+  </script>
+</body>
+</html>
